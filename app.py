@@ -7,13 +7,13 @@ import numpy as np
 st.set_page_config(page_title="Crypto 1H Pattern Detector", page_icon="📈", layout="wide")
 
 st.title("📊 Detector de Patrones de Velas (1H) para Criptomonedas")
-st.markdown("Herramienta interactiva conectada a datos en tiempo real de Binance para identificar patrones de giro con filtros de tendencia y volumen.")
+st.markdown("Herramienta interactiva conectada a datos en tiempo real de Kraken para identificar patrones de giro con filtros de tendencia y volumen.")
 
 # Barra lateral
 st.sidebar.header("⚙️ Configuración")
 simbolo = st.sidebar.selectbox(
     "Selecciona el Par", 
-    ["BTC/USDT", "ETH/USDT", "SOL/USDT", "BNB/USDT", "XRP/USDT", "ADA/USDT"], 
+    ["BTC/USDT", "ETH/USDT", "SOL/USDT", "XRP/USDT", "ADA/USDT", "DOGE/USDT"], 
     index=0
 )
 limite_velas = st.sidebar.slider("Número de velas de 1H a analizar", min_value=100, max_value=500, value=200, step=50)
@@ -26,24 +26,21 @@ def detectar_patrones(df):
     c = df['close']
     
     cuerpo = (c - o).abs()
-    rango_total = h - l
     mecha_superior = h - np.maximum(o, c)
     mecha_inferior = np.minimum(o, c) - l
     
     # 1. Martillo (Hammer) / Estrella Fugaz (Shooting Star)
-    # Cuerpo pequeño en un extremo y mecha al menos 2 veces el tamaño del cuerpo
     martillo_alcista = (mecha_inferior >= 2 * cuerpo) & (mecha_superior <= cuerpo * 0.5) & (cuerpo > 0)
     martillo_bajista = (mecha_superior >= 2 * cuerpo) & (mecha_inferior <= cuerpo * 0.5) & (cuerpo > 0)
     
     # 2. Envolvente (Engulfing)
-    # Vela anterior contraria y cuerpo actual envuelve completamente al anterior
     prev_o = o.shift(1)
     prev_c = c.shift(1)
     
     engulfing_alcista = (prev_c < prev_o) & (c > o) & (o <= prev_c) & (c >= prev_o)
     engulfing_bajista = (prev_c > prev_o) & (c < o) & (o >= prev_c) & (c <= prev_o)
     
-    # 3. Estrella de la Mañana / Tarde (Morning / Evening Star - simplificado de 3 velas)
+    # 3. Estrella de la Mañana / Tarde (Morning / Evening Star)
     o2, c2 = o.shift(2), c.shift(2)
     cuerpo1 = (prev_c - prev_o).abs()
     cuerpo2 = (c2 - o2).abs()
@@ -54,7 +51,6 @@ def detectar_patrones(df):
     df['patron_alcista'] = martillo_alcista | engulfing_alcista | morning_star
     df['patron_bajista'] = martillo_bajista | engulfing_bajista | evening_star
     
-    # Guardar el nombre del patrón detectado
     condiciones = [
         engulfing_alcista, morning_star, martillo_alcista,
         engulfing_bajista, evening_star, martillo_bajista
@@ -68,8 +64,8 @@ def detectar_patrones(df):
 
 @st.cache_data(ttl=300)
 def cargar_datos_y_analizar(symbol, limit):
-    # Nota: Si Binance bloquea la IP del servidor de Streamlit (EE.UU.), puedes cambiar ccxt.binance() por ccxt.kraken() o ccxt.bybit()
-    exchange = ccxt.binance({'enableRateLimit': True})
+    # Usamos Kraken porque permite conexiones desde los servidores de EE.UU. de Streamlit
+    exchange = ccxt.kraken({'enableRateLimit': True})
     ohlcv = exchange.fetch_ohlcv(symbol, timeframe='1h', limit=limit)
     
     df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
@@ -132,4 +128,3 @@ try:
 
 except Exception as e:
     st.error(f"Ocurrió un error al obtener los datos: {e}")
-    st.info("💡 Consejo: Si el error menciona restricción geográfica de Binance (Error 451), cambia 'ccxt.binance()' por 'ccxt.kraken()' o 'ccxt.okx()' en el código.")
